@@ -527,7 +527,11 @@ def process_mask3d(ct_path,label_path,json_path,vertebrae_ids,output_folder,outp
 
         # 这里要注意，不嫩那个把所有的json文件中的坐标都输进去，
         # 因为部分坐标是不需要的，要根据label取
+        # Note: VerSe19 centroid JSON has first entry as {'direction': [...]} without 'label'
         for entry in data:  # Skip the first entry which is 'direction'
+            # Skip entries without 'label' key (e.g., the 'direction' entry in VerSe19)
+            if 'label' not in entry:
+                continue
             if entry['label'] == None:
                 continue
             if entry['label'] == label:
