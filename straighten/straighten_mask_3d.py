@@ -489,7 +489,22 @@ def process_mask3d(ct_path,label_path,json_path,vertebrae_ids,output_folder,outp
         coordinates = extend_curve(np.array(coordinates),20,(0,0,0),label_data.shape)
 
     
-    basename = os.path.basename(ct_path).replace(".nii.gz","")
+    # Extract proper basename that matches vertebra_data.json format
+    # VerSe19 CT files: sub-verse012_ct.nii -> need just "sub-verse012"
+    raw_basename = os.path.basename(ct_path)
+    # Remove all possible extensions
+    basename = raw_basename.replace(".nii.gz", "").replace(".nii", "")
+    # Remove common suffixes like _ct, _CT, _ct.nii (leftover from nested folders)
+    for suffix in ['_ct', '_CT', '_ct.nii', '_CT.nii']:
+        if basename.endswith(suffix):
+            basename = basename[:-len(suffix)]
+            break
+    # Also handle cases like "verse012_CT-sag_seg" from nested folders
+    if '_CT-' in basename:
+        basename = basename.split('_CT-')[0]
+    # Ensure we have "sub-" prefix (VerSe19 format)
+    if not basename.startswith('sub-') and 'verse' in basename:
+        basename = 'sub-' + basename
     
     ct_data =  window(ct_data, -300, 800)
     shape = (128, 128) 

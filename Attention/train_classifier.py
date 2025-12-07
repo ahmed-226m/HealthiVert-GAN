@@ -190,6 +190,13 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
+    # Check for multiple GPUs
+    num_gpus = torch.cuda.device_count()
+    print(f"Number of GPUs available: {num_gpus}")
+    if num_gpus > 1:
+        print(f"  GPU 0: {torch.cuda.get_device_name(0)}")
+        print(f"  GPU 1: {torch.cuda.get_device_name(1)}")
+    
     # Paths
     json_path = args.json_path if args.json_path else os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -211,10 +218,14 @@ def main(args):
         augment=False
     )
     
+    # Adjust batch size for multi-GPU (effective batch size = batch_size * num_gpus)
+    effective_batch_size = args.batch_size * max(1, num_gpus)
+    print(f"Effective batch size: {effective_batch_size} ({args.batch_size} x {max(1, num_gpus)} GPUs)")
+    
     # Dataloaders
     train_loader = DataLoader(
         train_dataset,
-        batch_size=args.batch_size,
+        batch_size=effective_batch_size,
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=True
@@ -222,7 +233,7 @@ def main(args):
     
     test_loader = DataLoader(
         test_dataset,
-        batch_size=args.batch_size,
+        batch_size=effective_batch_size,
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=True
@@ -230,6 +241,12 @@ def main(args):
     
     # Create model
     model = VertebraClassifier(in_channels=1, num_classes=2, use_se=True)
+    
+    # Use DataParallel for multi-GPU training
+    if num_gpus > 1:
+        print(f"Using DataParallel with {num_gpus} GPUs")
+        model = nn.DataParallel(model)
+    
     model = model.to(device)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     
@@ -270,16 +287,19 @@ def main(args):
         # Learning rate scheduler
         scheduler.step(test_f1)
         
+        # Get the underlying model (unwrap DataParallel if used)
+        model_to_save = model.module if hasattr(model, 'module') else model
+        
         # Save best model
         if test_f1 > best_f1:
             best_f1 = test_f1
-            torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'best_model.pth'))
+            torch.save(model_to_save.state_dict(), os.path.join(checkpoint_dir, 'best_model.pth'))
             print(f"Saved best model with F1: {best_f1:.4f}")
         
         # Save latest model
         torch.save({
             'epoch': epoch,
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model_to_save.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_f1': best_f1
         }, os.path.join(checkpoint_dir, 'latest_checkpoint.pth'))
@@ -289,7 +309,9 @@ def main(args):
     print("Final Evaluation on Test Set")
     print("="*50)
     
-    model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'best_model.pth')))
+    # Load best model (unwrap DataParallel if used)
+    model_to_load = model.module if hasattr(model, 'module') else model
+    model_to_load.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'best_model.pth')))
     _, test_acc, test_f1, preds, labels, ids = evaluate(model, test_loader, criterion, device)
     
     print(f"\nBest Test Accuracy: {test_acc:.4f}")
