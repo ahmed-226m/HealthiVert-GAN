@@ -242,19 +242,29 @@ def process_nii_files(folder_path,CAM_folder, model, output_folder, device):
             
 
 def main():
-    model_path = '/home/zhangqi/Project/pytorch-CycleGAN-and-pix2pix-master/checkpoints/0421_adaptive_sagittal/latest_net_G.pth'
+    # ============ KAGGLE PATHS ============
+    # Model checkpoint path
+    model_path = os.environ.get('MODEL_PATH', '/kaggle/working/checkpoints/healthivert_gan/latest_net_G.pth')
+    
+    # Input paths
+    folder_path = os.environ.get('CT_FOLDER', '/kaggle/working/straightened/CT')
+    CAM_folder = os.environ.get('CAM_FOLDER', '/kaggle/working/Attention/heatmap')
+    
+    # Output path
+    output_folder = os.environ.get('OUTPUT_FOLDER', '/kaggle/working/output_3d/sagittal/fine')
+    
+    print(f"Model path: {model_path}")
+    print(f"CT folder: {folder_path}")
+    print(f"CAM folder: {CAM_folder}")
+    print(f"Output folder: {output_folder}")
+    
     netG_params = {'input_dim': 1, 'ngf': 16}
-    #folder_path = '/home/zhangqi/Project/pytorch-CycleGAN-and-pix2pix-master/datasets/straighten/revised/CT'
-    #CAM_folder = '/home/zhangqi/Project/VertebralFractureGrading/heatmap/straighten_sagittal/binaryclass_1'
-    #output_folder = '/home/zhangqi/Project/pytorch-CycleGAN-and-pix2pix-master/output_3d/sagittal/fine'
-    folder_path = '/home/zhangqi/Project/pytorch-CycleGAN-and-pix2pix-master/datasets/local/straighten/CT'
-    CAM_folder = '/home/zhangqi/Project/VertebralFractureGrading/heatmap/local_sagittal_0508/binaryclass_1'
-    output_folder = '/home/zhangqi/Project/pytorch-CycleGAN-and-pix2pix-master/output_3d/local_dataset/sagittal/fine'
+    
     if not os.path.exists(output_folder+'/CT_fake'):
         os.makedirs(output_folder+'/CT_fake')
     if not os.path.exists(output_folder+'/label_fake'):
         os.makedirs(output_folder+'/label_fake')
-    device = 'cuda:0'
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
     model = load_model(model_path, netG_params, device)
     process_nii_files(folder_path,CAM_folder, model, output_folder, device)

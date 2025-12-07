@@ -52,6 +52,10 @@ def process_directory(root_dir):
         with open(json_path, 'w') as f:
             json.dump(json_data, f, indent=4)
 
-root_dir =  '/mnt/g/local_dataset/preprocessed/local'
-#root_dir =  '/mnt/g/six_local_dataset/local'
+# ============ KAGGLE PATHS ============
+# Set environment variable or modify directly:
+#   os.environ['VERSE_DATA_FOLDER'] = '/kaggle/input/verse19/raw'
+import os as os_module
+root_dir = os_module.environ.get('VERSE_DATA_FOLDER', '/kaggle/input/verse19/raw')
+print(f"Processing directory: {root_dir}")
 process_directory(root_dir)

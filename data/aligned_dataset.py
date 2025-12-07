@@ -46,7 +46,9 @@ class AlignedDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
         
         # 读取json文件来选择训练集、测试集和验证集
-        with open('vertebra_data_local.json', 'r') as file:
+        # For Kaggle: use vertebra_data.json (not vertebra_data_local.json)
+        json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'vertebra_data.json')
+        with open(json_path, 'r') as file:
             vertebra_set = json.load(file)
             self.normal_vert_list = []
             self.abnormal_vert_list = []
@@ -159,7 +161,9 @@ class AlignedDataset(BaseDataset):
             B_paths (str) - - image paths (same as A_paths)
         """
         # read a image given a random integer index
-        CAM_folder = '/temp_data/zhangqi/datasets/HealthiVert_GAN/straighten_local/heatmap_CT'
+        # CAM folder path - For Kaggle: use relative path from dataroot
+        # Default: ./Attention/heatmap/ or can be set via environment variable
+        CAM_folder = os.environ.get('CAM_FOLDER', os.path.join(os.path.dirname(self.dir_AB), 'Attention', 'heatmap'))
 
         CAM_path_0 = os.path.join(CAM_folder, self.vertebra_id[index]+'_0.nii.gz')
         CAM_path_1 = os.path.join(CAM_folder, self.vertebra_id[index]+'_1.nii.gz')

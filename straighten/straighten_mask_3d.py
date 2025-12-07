@@ -654,13 +654,22 @@ def build_patient_vertebrae_map(json_path):
 #json_path = '/home/zhangqi/environments/code/vertebra_data.json'  # Path to the JSON file you've uploaded
 #output_folder = '/home/zhangqi/environments/data/straighten/revised'  # Update with the path where you want to save outputs
 
-data_folder = '/mnt/g/local_dataset/preprocessed/local'  # Update with the actual path to your data
-json_path = '/mnt/g/local_dataset/preprocessed/vertebra_data.json'  # Path to the JSON file you've uploaded
-output_folder = '/mnt/g/local_dataset/preprocessed/straighten'  # Update with the path where you want to save outputs
+# ============ KAGGLE PATHS ============
+# Set these environment variables in your Kaggle notebook, or modify directly below
+# Example for Kaggle:
+#   import os
+#   os.environ['VERSE_DATA_FOLDER'] = '/kaggle/input/verse19/raw'
+#   os.environ['VERTEBRA_JSON_PATH'] = '/kaggle/input/healthivert-gan/vertebra_data.json'
+#   os.environ['STRAIGHTEN_OUTPUT_FOLDER'] = '/kaggle/working/straightened'
 
-#data_folder = '/mnt/g/six_local_dataset/local'  # Update with the actual path to your data
-#json_path = '/mnt/g/six_local_dataset/vertebra_data.json'  # Path to the JSON file you've uploaded
-#output_folder = '/mnt/g/six_local_dataset/straighten'  # Update with the path where you want to save outputs
+import os as os_module
+data_folder = os_module.environ.get('VERSE_DATA_FOLDER', '/kaggle/input/verse19/raw')
+json_path = os_module.environ.get('VERTEBRA_JSON_PATH', '/kaggle/input/healthivert-gan/vertebra_data.json')
+output_folder = os_module.environ.get('STRAIGHTEN_OUTPUT_FOLDER', '/kaggle/working/straightened')
+
+print(f"Data folder: {data_folder}")
+print(f"JSON path: {json_path}")
+print(f"Output folder: {output_folder}")
 
 category_patient_vertebrae_map = build_patient_vertebrae_map(json_path)
 
