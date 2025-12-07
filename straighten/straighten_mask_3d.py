@@ -609,12 +609,23 @@ def process_data(data_folder, data, output_folder):
             # Pattern 3: VerSe19 structure - rawdata/derivatives folders
             # CT: {data_folder}/rawdata/{patient_id}/{patient_id}_ct.nii.gz (or .nii)
             # Mask: {data_folder}/derivatives/{patient_id}/{patient_id}_seg-vert_msk.nii.gz (or .nii)
+            #       NOTE: In some Kaggle VerSe19 uploads, the .nii is actually a FOLDER containing the real file!
             # JSON: {data_folder}/derivatives/{patient_id}/{patient_id}_seg-vb_ctd.json
             ct_path_3 = os.path.join(data_folder, 'rawdata', patient_id, patient_id + '_ct.nii.gz')
             ct_path_3_alt = os.path.join(data_folder, 'rawdata', patient_id, patient_id + '_ct.nii')
             mask_path_3 = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vert_msk.nii.gz')
             mask_path_3_alt = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vert_msk.nii')
             json_path_3 = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vb_ctd.json')
+            
+            # Helper function to resolve paths that might be directories (Kaggle quirk)
+            def resolve_nii_path(path):
+                """If path is a directory, find the .nii/.nii.gz file inside it."""
+                if os.path.isdir(path):
+                    # Look for .nii.gz or .nii files inside the directory
+                    for f in os.listdir(path):
+                        if f.endswith('.nii.gz') or f.endswith('.nii'):
+                            return os.path.join(path, f)
+                return path
             
             # Try Pattern 1
             if os.path.exists(ct_path_1) and os.path.exists(mask_path_1) and os.path.exists(json_path_1):
@@ -624,13 +635,24 @@ def process_data(data_folder, data, output_folder):
                 ct_path, mask_path, json_path = ct_path_2, mask_path_2, json_path_2
             # Try Pattern 3 (VerSe19) with .nii.gz
             elif os.path.exists(ct_path_3) and os.path.exists(mask_path_3) and os.path.exists(json_path_3):
-                ct_path, mask_path, json_path = ct_path_3, mask_path_3, json_path_3
-            # Try Pattern 3 (VerSe19) with .nii (uncompressed)
+                ct_path = resolve_nii_path(ct_path_3)
+                mask_path = resolve_nii_path(mask_path_3)
+                json_path = json_path_3
+            # Try Pattern 3 (VerSe19) with .nii (uncompressed or directory)
             elif os.path.exists(ct_path_3_alt) and os.path.exists(mask_path_3_alt) and os.path.exists(json_path_3):
-                ct_path, mask_path, json_path = ct_path_3_alt, mask_path_3_alt, json_path_3
+                ct_path = resolve_nii_path(ct_path_3_alt)
+                mask_path = resolve_nii_path(mask_path_3_alt)
+                json_path = json_path_3
             # Try Pattern 3 mixed (.nii for CT, .nii.gz for mask)
             elif os.path.exists(ct_path_3_alt) and os.path.exists(mask_path_3) and os.path.exists(json_path_3):
-                ct_path, mask_path, json_path = ct_path_3_alt, mask_path_3, json_path_3
+                ct_path = resolve_nii_path(ct_path_3_alt)
+                mask_path = resolve_nii_path(mask_path_3)
+                json_path = json_path_3
+            # Try Pattern 3 mixed (.nii.gz for CT, .nii for mask - directory case)
+            elif os.path.exists(ct_path_3) and os.path.exists(mask_path_3_alt) and os.path.exists(json_path_3):
+                ct_path = resolve_nii_path(ct_path_3)
+                mask_path = resolve_nii_path(mask_path_3_alt)
+                json_path = json_path_3
             # Fallback: find largest file
             else:
                 patient_dir = os.path.join(data_folder, patient_id)
@@ -640,15 +662,22 @@ def process_data(data_folder, data, output_folder):
                 elif os.path.exists(patient_dir):
                     ct_path = find_largest_file(patient_dir)
             
-            # Validate paths exist
+            # Validate paths exist and are files (not directories)
             if ct_path and mask_path and json_path:
-                if os.path.exists(ct_path) and os.path.exists(mask_path) and os.path.exists(json_path):
+                # Final validation: make sure we have actual files, not directories
+                ct_valid = os.path.isfile(ct_path) if ct_path else False
+                mask_valid = os.path.isfile(mask_path) if mask_path else False
+                json_valid = os.path.isfile(json_path) if json_path else False
+                
+                if ct_valid and mask_valid and json_valid:
                     file_size_mb = os.path.getsize(ct_path) / (1024 * 1024)
                     print(f"Processing {patient_id}: CT at {ct_path}, mask at {mask_path}, json at {json_path}")
                     print(f"Vertebrae IDs: {vertebrae_ids}")
                     process_mask3d(ct_path, mask_path, json_path, vertebrae_ids, output_folder, (256,256,64))
                 else:
-                    print(f"Files for patient {patient_id} not found (some paths invalid).")
+                    print(f"Files for patient {patient_id} not valid (CT:{ct_valid}, Mask:{mask_valid}, JSON:{json_valid}).")
+                    if not mask_valid and mask_path:
+                        print(f"  Mask path issue: {mask_path} is_dir={os.path.isdir(mask_path) if mask_path else 'N/A'}")
             else:
                 print(f"Files for patient {patient_id} not found (no matching pattern).")
 
