@@ -1,11 +1,12 @@
 """
 Training Script for Vertebra Fracture Classifier.
 
-This script trains the 3D SE-ResNet classifier for binary fracture detection.
-The trained model is then used to generate Grad-CAM++ attention heatmaps.
+This script trains either the full 3D SE-ResNet classifier or a simpler 
+lightweight model for binary fracture detection on small datasets.
 
 Usage:
     python Attention/train_classifier.py --dataroot ./datasets/straightened --epochs 50
+    python Attention/train_classifier.py --dataroot ./datasets/straightened --simple --epochs 30
 
 For Kaggle:
     Run cells in notebook format (see examples below)
@@ -19,15 +20,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import nibabel as nib
 from sklearn.metrics import accuracy_score, f1_score, classification_report, confusion_matrix
 from tqdm import tqdm
+from scipy.ndimage import rotate, zoom
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Attention.fracture_classifier import VertebraClassifier, create_classifier
+from Attention.fracture_classifier_simple import SimpleFractureClassifier, create_simple_classifier
 
 
 class VertebraDataset(Dataset):
@@ -111,16 +114,40 @@ class VertebraDataset(Dataset):
         }
     
     def _augment(self, ct_data):
-        """Simple data augmentation."""
+        """Enhanced data augmentation for small datasets."""
         # Random horizontal flip
         if np.random.random() > 0.5:
             ct_data = np.flip(ct_data, axis=1).copy()
         
+        # Random vertical flip (less common but adds variety)
+        if np.random.random() > 0.7:
+            ct_data = np.flip(ct_data, axis=0).copy()
+        
         # Random intensity shift
-        shift = np.random.uniform(-0.1, 0.1)
+        shift = np.random.uniform(-0.15, 0.15)
         ct_data = np.clip(ct_data + shift, 0, 1)
         
-        return ct_data
+        # Random contrast adjustment
+        if np.random.random() > 0.5:
+            contrast = np.random.uniform(0.8, 1.2)
+            mean = ct_data.mean()
+            ct_data = np.clip((ct_data - mean) * contrast + mean, 0, 1)
+        
+        # Random Gaussian noise
+        if np.random.random() > 0.7:
+            noise = np.random.normal(0, 0.02, ct_data.shape)
+            ct_data = np.clip(ct_data + noise, 0, 1)
+        
+        return ct_data.astype(np.float32)
+    
+    def get_sample_weights(self):
+        """Get sample weights for WeightedRandomSampler to handle class imbalance."""
+        labels = [s['label'] for s in self.samples]
+        class_counts = [labels.count(0), labels.count(1)]
+        # Higher weight for minority class
+        class_weights = [1.0 / c for c in class_counts]
+        sample_weights = [class_weights[label] for label in labels]
+        return sample_weights
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device):
@@ -222,11 +249,26 @@ def main(args):
     effective_batch_size = args.batch_size * max(1, num_gpus)
     print(f"Effective batch size: {effective_batch_size} ({args.batch_size} x {max(1, num_gpus)} GPUs)")
     
+    # Create weighted sampler for class imbalance
+    if args.weighted_sampling:
+        sample_weights = train_dataset.get_sample_weights()
+        sampler = WeightedRandomSampler(
+            weights=sample_weights,
+            num_samples=len(sample_weights),
+            replacement=True
+        )
+        print("Using WeightedRandomSampler for class imbalance")
+        train_shuffle = False
+    else:
+        sampler = None
+        train_shuffle = True
+    
     # Dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=effective_batch_size,
-        shuffle=True,
+        shuffle=train_shuffle,
+        sampler=sampler,
         num_workers=args.num_workers,
         pin_memory=True
     )
@@ -239,8 +281,13 @@ def main(args):
         pin_memory=True
     )
     
-    # Create model
-    model = VertebraClassifier(in_channels=1, num_classes=2, use_se=True)
+    # Create model - choose simple or full
+    if args.simple:
+        print("Using SimpleFractureClassifier (lightweight, ~2M params)")
+        model = SimpleFractureClassifier(in_channels=1, num_classes=2, dropout=0.3)
+    else:
+        print("Using VertebraClassifier (full SE-ResNet, ~33M params)")
+        model = VertebraClassifier(in_channels=1, num_classes=2, use_se=True)
     
     # Use DataParallel for multi-GPU training
     if num_gpus > 1:
@@ -342,6 +389,10 @@ def parse_args():
                         help='Weight decay')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of data loading workers')
+    parser.add_argument('--simple', action='store_true',
+                        help='Use SimpleFractureClassifier (lightweight, ~2M params)')
+    parser.add_argument('--weighted_sampling', action='store_true',
+                        help='Use WeightedRandomSampler to handle class imbalance')
     
     return parser.parse_args()
 
