@@ -413,7 +413,8 @@ def extract_mask_volume(label_data, label, area_threshold=20):
         contours, _ = cv2.findContours(cleaned_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             # 为所有找到的轮廓创建一个覆盖轮廓的最小矩形
-            all_contours = np.vstack(contours[i] for i in range(len(contours)))
+            # Note: np.vstack requires a list, not a generator (newer numpy versions)
+            all_contours = np.vstack([contours[i] for i in range(len(contours))])
             rect = cv2.minAreaRect(all_contours)
             
             box = cv2.boxPoints(rect)
