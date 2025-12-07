@@ -65,8 +65,10 @@ class VertebraDataset(Dataset):
             for vertebra_id, genant_grade in vertebra_data[phase].items():
                 ct_path = os.path.join(self.ct_folder, f"{vertebra_id}.nii.gz")
                 if os.path.exists(ct_path):
-                    # Binary classification: 0-1 = normal (0), 2-3 = fractured (1)
-                    label = 0 if int(genant_grade) <= 1 else 1
+                    # Binary classification per paper:
+                    # Class 0 (Negative): No compression fracture (Genant grade 0)
+                    # Class 1 (Positive): Has compression fracture (Genant grade 1, 2, 3)
+                    label = 0 if int(genant_grade) == 0 else 1
                     self.samples.append({
                         'id': vertebra_id,
                         'path': ct_path,
@@ -78,8 +80,8 @@ class VertebraDataset(Dataset):
         
         # Class distribution
         labels = [s['label'] for s in self.samples]
-        print(f"  Class 0 (Normal/Mild): {labels.count(0)}")
-        print(f"  Class 1 (Moderate/Severe): {labels.count(1)}")
+        print(f"  Class 0 (No fracture - Genant 0): {labels.count(0)}")
+        print(f"  Class 1 (Has fracture - Genant 1-3): {labels.count(1)}")
     
     def __len__(self):
         return len(self.samples)
@@ -364,7 +366,7 @@ def main(args):
     print(f"\nBest Test Accuracy: {test_acc:.4f}")
     print(f"Best Test Macro-F1: {test_f1:.4f}")
     print("\nClassification Report:")
-    print(classification_report(labels, preds, target_names=['Normal/Mild', 'Moderate/Severe']))
+    print(classification_report(labels, preds, target_names=['No Fracture (G0)', 'Has Fracture (G1-3)']))
     print("\nConfusion Matrix:")
     print(confusion_matrix(labels, preds))
 
