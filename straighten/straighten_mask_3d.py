@@ -590,35 +590,67 @@ def process_data(data_folder, data, output_folder):
             #        found = True
             #    else:
             #        continue  # 跳过所有直到找到 start_file 的循环
-            ct_path = os.path.join(data_folder, category, patient_id, patient_id + '.nii.gz')
-            mask_path = os.path.join(data_folder, category, patient_id, patient_id + '_msk.nii.gz')
-            json_path = os.path.join(data_folder, category, patient_id, patient_id + '.json')
             
-            if not os.path.exists(ct_path):
-                ct_path = os.path.join(data_folder, patient_id, patient_id + '.nii.gz')
-                mask_path = os.path.join(data_folder, patient_id, patient_id + '_seg.nii.gz')
-                json_path = os.path.join(data_folder, patient_id, patient_id + '.json')
-            if not os.path.exists(ct_path):
-                ct_path = find_largest_file(os.path.join(data_folder, patient_id))
+            # Try multiple path patterns to support different dataset structures
+            ct_path = None
+            mask_path = None
+            json_path = None
             
-            file_size_mb = os.path.getsize(ct_path) / (1024 * 1024)
-            max_file_size_mb = 500
-            #if file_size_mb > max_file_size_mb:
-            #    print(patient_id)
-            #    continue
-
+            # Pattern 1: Original structure - {data_folder}/{category}/{patient_id}/{patient_id}.nii.gz
+            ct_path_1 = os.path.join(data_folder, category, patient_id, patient_id + '.nii.gz')
+            mask_path_1 = os.path.join(data_folder, category, patient_id, patient_id + '_msk.nii.gz')
+            json_path_1 = os.path.join(data_folder, category, patient_id, patient_id + '.json')
             
-            if os.path.exists(ct_path) and os.path.exists(mask_path) and os.path.exists(json_path):
-                print(f"Processing {patient_id}: CT at {ct_path}, mask at {mask_path}, json at {json_path}")
-                print(f"Vertebrae IDs: {vertebrae_ids}")
-                # Here you would call your processing function with the vertebra IDs
-                #try:
-                process_mask3d(ct_path, mask_path, json_path, vertebrae_ids, output_folder, (256,256,64))
-                #except:
-                #    print("error",patient_id)
-                #    continue
+            # Pattern 2: Flat structure - {data_folder}/{patient_id}/{patient_id}.nii.gz
+            ct_path_2 = os.path.join(data_folder, patient_id, patient_id + '.nii.gz')
+            mask_path_2 = os.path.join(data_folder, patient_id, patient_id + '_seg.nii.gz')
+            json_path_2 = os.path.join(data_folder, patient_id, patient_id + '.json')
+            
+            # Pattern 3: VerSe19 structure - rawdata/derivatives folders
+            # CT: {data_folder}/rawdata/{patient_id}/{patient_id}_ct.nii.gz (or .nii)
+            # Mask: {data_folder}/derivatives/{patient_id}/{patient_id}_seg-vert_msk.nii.gz (or .nii)
+            # JSON: {data_folder}/derivatives/{patient_id}/{patient_id}_seg-vb_ctd.json
+            ct_path_3 = os.path.join(data_folder, 'rawdata', patient_id, patient_id + '_ct.nii.gz')
+            ct_path_3_alt = os.path.join(data_folder, 'rawdata', patient_id, patient_id + '_ct.nii')
+            mask_path_3 = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vert_msk.nii.gz')
+            mask_path_3_alt = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vert_msk.nii')
+            json_path_3 = os.path.join(data_folder, 'derivatives', patient_id, patient_id + '_seg-vb_ctd.json')
+            
+            # Try Pattern 1
+            if os.path.exists(ct_path_1) and os.path.exists(mask_path_1) and os.path.exists(json_path_1):
+                ct_path, mask_path, json_path = ct_path_1, mask_path_1, json_path_1
+            # Try Pattern 2
+            elif os.path.exists(ct_path_2) and os.path.exists(mask_path_2) and os.path.exists(json_path_2):
+                ct_path, mask_path, json_path = ct_path_2, mask_path_2, json_path_2
+            # Try Pattern 3 (VerSe19) with .nii.gz
+            elif os.path.exists(ct_path_3) and os.path.exists(mask_path_3) and os.path.exists(json_path_3):
+                ct_path, mask_path, json_path = ct_path_3, mask_path_3, json_path_3
+            # Try Pattern 3 (VerSe19) with .nii (uncompressed)
+            elif os.path.exists(ct_path_3_alt) and os.path.exists(mask_path_3_alt) and os.path.exists(json_path_3):
+                ct_path, mask_path, json_path = ct_path_3_alt, mask_path_3_alt, json_path_3
+            # Try Pattern 3 mixed (.nii for CT, .nii.gz for mask)
+            elif os.path.exists(ct_path_3_alt) and os.path.exists(mask_path_3) and os.path.exists(json_path_3):
+                ct_path, mask_path, json_path = ct_path_3_alt, mask_path_3, json_path_3
+            # Fallback: find largest file
             else:
-                print(f"Files for patient {patient_id} not found.")
+                patient_dir = os.path.join(data_folder, patient_id)
+                rawdata_dir = os.path.join(data_folder, 'rawdata', patient_id)
+                if os.path.exists(rawdata_dir):
+                    ct_path = find_largest_file(rawdata_dir)
+                elif os.path.exists(patient_dir):
+                    ct_path = find_largest_file(patient_dir)
+            
+            # Validate paths exist
+            if ct_path and mask_path and json_path:
+                if os.path.exists(ct_path) and os.path.exists(mask_path) and os.path.exists(json_path):
+                    file_size_mb = os.path.getsize(ct_path) / (1024 * 1024)
+                    print(f"Processing {patient_id}: CT at {ct_path}, mask at {mask_path}, json at {json_path}")
+                    print(f"Vertebrae IDs: {vertebrae_ids}")
+                    process_mask3d(ct_path, mask_path, json_path, vertebrae_ids, output_folder, (256,256,64))
+                else:
+                    print(f"Files for patient {patient_id} not found (some paths invalid).")
+            else:
+                print(f"Files for patient {patient_id} not found (no matching pattern).")
 
 
 def build_patient_vertebrae_map(json_path):
