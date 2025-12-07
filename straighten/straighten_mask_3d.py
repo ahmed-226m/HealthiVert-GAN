@@ -688,21 +688,24 @@ def build_patient_vertebrae_map(json_path):
 
 # ============ KAGGLE PATHS ============
 # Set these environment variables in your Kaggle notebook, or modify directly below
-# Example for Kaggle:
+# Example for Kaggle VerSe19:
 #   import os
-#   os.environ['VERSE_DATA_FOLDER'] = '/kaggle/input/verse19/raw'
-#   os.environ['VERTEBRA_JSON_PATH'] = '/kaggle/input/healthivert-gan/vertebra_data.json'
+#   os.environ['VERSE_DATA_FOLDER'] = '/kaggle/input/verse-19-3d-images'
+#   os.environ['VERTEBRA_JSON_PATH'] = '/kaggle/working/HealthiVert-GAN/vertebra_data.json'
 #   os.environ['STRAIGHTEN_OUTPUT_FOLDER'] = '/kaggle/working/straightened'
 
 import os as os_module
-data_folder = os_module.environ.get('VERSE_DATA_FOLDER', '/kaggle/input/verse19/raw')
-json_path = os_module.environ.get('VERTEBRA_JSON_PATH', '/kaggle/input/healthivert-gan/vertebra_data.json')
+
+# Root folder containing dataset-verse19test, dataset-verse19training, dataset-verse19validation
+data_folder = os_module.environ.get('VERSE_DATA_FOLDER', '/kaggle/input/verse-19-3d-images')
+json_path = os_module.environ.get('VERTEBRA_JSON_PATH', '/kaggle/working/HealthiVert-GAN/vertebra_data.json')
 output_folder = os_module.environ.get('STRAIGHTEN_OUTPUT_FOLDER', '/kaggle/working/straightened')
 
 print(f"Data folder: {data_folder}")
 print(f"JSON path: {json_path}")
 print(f"Output folder: {output_folder}")
 
+# Build the vertebrae map from JSON
 category_patient_vertebrae_map = build_patient_vertebrae_map(json_path)
 
 # Display the map for demonstration
@@ -711,4 +714,22 @@ for category, patients in category_patient_vertebrae_map.items():
     for patient_id, vertebrae_ids in patients.items():
         print(f"  Patient ID: {patient_id}, Vertebrae IDs: {vertebrae_ids}")
 
-process_data(data_folder,category_patient_vertebrae_map,output_folder)
+# ============ PROCESS ALL VERSE19 SPLITS ============
+# VerSe19 structure: data_folder/dataset-verse19{test,training,validation}/rawdata+derivatives
+
+verse19_splits = ['dataset-verse19test', 'dataset-verse19training', 'dataset-verse19validation']
+verse19_split_found = False
+
+for split in verse19_splits:
+    split_folder = os_module.path.join(data_folder, split)
+    if os_module.path.exists(split_folder):
+        verse19_split_found = True
+        print(f"\n{'='*60}")
+        print(f"Processing VerSe19 split: {split}")
+        print(f"{'='*60}")
+        process_data(split_folder, category_patient_vertebrae_map, output_folder)
+
+# Fallback: if no VerSe19 splits found, try direct processing (original structure)
+if not verse19_split_found:
+    print("\nNo VerSe19 splits found, trying direct processing...")
+    process_data(data_folder, category_patient_vertebrae_map, output_folder)

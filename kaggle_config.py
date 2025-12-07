@@ -62,24 +62,26 @@ def setup_kaggle_env(code_path=None, verse_path=None):
     CODE_PATH = code_path
     
     # Path to VerSe19 dataset
-    # Common patterns:
-    # - /kaggle/input/verse19/raw
-    # - /kaggle/input/verse-2019/...
-    # - /kaggle/input/verse19-dataset/...
+    # VerSe19 structure on Kaggle:
+    #   /kaggle/input/verse-19-3d-images/
+    #   ├── dataset-verse19test/
+    #   ├── dataset-verse19training/
+    #   └── dataset-verse19validation/
+    # Each contains: rawdata/ and derivatives/ subfolders
     if verse_path is None:
-        # Try to auto-detect
+        # Try to auto-detect common Kaggle paths for VerSe19
         possible_paths = [
-            '/kaggle/input/verse19/raw',
-            '/kaggle/input/verse-2019/raw', 
-            '/kaggle/input/verse19-dataset/raw',
+            '/kaggle/input/verse-19-3d-images',      # Exact Kaggle dataset name
+            '/kaggle/input/verse19-3d-images',
             '/kaggle/input/verse19',
+            '/kaggle/input/verse-2019',
         ]
         for p in possible_paths:
             if os.path.exists(p):
                 verse_path = p
                 break
         if verse_path is None:
-            verse_path = '/kaggle/input/verse19/raw'  # Default
+            verse_path = '/kaggle/input/verse-19-3d-images'  # Default
     
     VERSE_INPUT_PATH = verse_path
     
