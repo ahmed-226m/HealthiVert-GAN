@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Attention.fracture_classifier import VertebraClassifier, create_classifier
 from Attention.fracture_classifier_simple import SimpleFractureClassifier, create_simple_classifier
+from Attention.fracture_classifier_dualpath import DualPathClassifier, create_dualpath_classifier
 
 
 class VertebraDataset(Dataset):
@@ -292,10 +293,13 @@ def main(args):
         pin_memory=True
     )
     
-    # Create model - choose simple or full
+    # Create model - choose architecture
     if args.simple:
         print("Using SimpleFractureClassifier (lightweight, ~2M params)")
         model = SimpleFractureClassifier(in_channels=1, num_classes=2, dropout=0.3)
+    elif args.dualpath:
+        print("Using DualPathClassifier (Reference [27], ~1M params)")
+        model = DualPathClassifier(in_channels=1, num_classes=2, base_channels=30)
     else:
         print("Using VertebraClassifier (full SE-ResNet, ~33M params)")
         model = VertebraClassifier(in_channels=1, num_classes=2, use_se=True)
@@ -402,6 +406,8 @@ def parse_args():
                         help='Number of data loading workers')
     parser.add_argument('--simple', action='store_true',
                         help='Use SimpleFractureClassifier (lightweight, ~2M params)')
+    parser.add_argument('--dualpath', action='store_true',
+                        help='Use DualPathClassifier (Reference [27] from paper, ~1M params)')
     parser.add_argument('--weighted_sampling', action='store_true',
                         help='Use WeightedRandomSampler to handle class imbalance')
     
