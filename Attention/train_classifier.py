@@ -352,19 +352,25 @@ def main(args):
         # Get the underlying model (unwrap DataParallel if used)
         model_to_save = model.module if hasattr(model, 'module') else model
         
-        # Save best model
+        # Save best model with verification
         if test_f1 > best_f1:
             best_f1 = test_f1
-            torch.save(model_to_save.state_dict(), os.path.join(checkpoint_dir, 'best_model.pth'))
-            print(f"Saved best model with F1: {best_f1:.4f}")
+            best_model_path = os.path.join(checkpoint_dir, 'best_model.pth')
+            torch.save(model_to_save.state_dict(), best_model_path)
+            # Verify save was successful
+            if os.path.exists(best_model_path) and os.path.getsize(best_model_path) > 0:
+                print(f"Saved best model with F1: {best_f1:.4f}")
+            else:
+                print(f"WARNING: Failed to save best model!")
         
-        # Save latest model
+        # Save latest checkpoint with verification
+        latest_ckpt_path = os.path.join(checkpoint_dir, 'latest_checkpoint.pth')
         torch.save({
             'epoch': epoch,
             'model_state_dict': model_to_save.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_f1': best_f1
-        }, os.path.join(checkpoint_dir, 'latest_checkpoint.pth'))
+        }, latest_ckpt_path)
     
     # Final evaluation
     print("\n" + "="*50)
@@ -382,6 +388,29 @@ def main(args):
     print(classification_report(labels, preds, target_names=['No Fracture (G0)', 'Has Fracture (G1-3)']))
     print("\nConfusion Matrix:")
     print(confusion_matrix(labels, preds))
+    
+    # Verify and print saved checkpoint locations
+    print("\n" + "="*50)
+    print("SAVED CHECKPOINTS:")
+    print("="*50)
+    best_model_path = os.path.join(checkpoint_dir, 'best_model.pth')
+    latest_ckpt_path = os.path.join(checkpoint_dir, 'latest_checkpoint.pth')
+    
+    if os.path.exists(best_model_path):
+        size_mb = os.path.getsize(best_model_path) / (1024 * 1024)
+        print(f"✓ Best model: {best_model_path} ({size_mb:.2f} MB)")
+    else:
+        print(f"✗ Best model NOT FOUND at {best_model_path}")
+    
+    if os.path.exists(latest_ckpt_path):
+        size_mb = os.path.getsize(latest_ckpt_path) / (1024 * 1024)
+        print(f"✓ Latest checkpoint: {latest_ckpt_path} ({size_mb:.2f} MB)")
+    else:
+        print(f"✗ Latest checkpoint NOT FOUND at {latest_ckpt_path}")
+    
+    print("\nTo download the model, run in Kaggle notebook:")
+    print(f"  from IPython.display import FileLink")
+    print(f"  FileLink('{best_model_path}')")
 
 
 def parse_args():
