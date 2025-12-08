@@ -33,27 +33,32 @@ class ConvBlock3D(nn.Module):
 
 class NormalPathway(nn.Module):
     """
-    Normal resolution pathway.
-    Processes input at full resolution for fine-grained features.
+    Normal resolution pathway with early downsampling to reduce memory.
+    Processes input with initial stride-2 conv for memory efficiency.
     Receptive field: ~17³ voxels
     """
     
     def __init__(self, in_channels=1, base_channels=30):
         super(NormalPathway, self).__init__()
         
-        # 8 convolutional layers (as per DeepMedic reference)
+        # Early downsampling with stride 2 to reduce memory
+        self.stem = nn.Sequential(
+            nn.Conv3d(in_channels, base_channels, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm3d(base_channels),
+            nn.ReLU(inplace=True),
+        )
+        
+        # 5 convolutional layers (reduced from 8 for memory efficiency)
         self.layers = nn.Sequential(
-            ConvBlock3D(in_channels, base_channels, 3, 1),      # Conv1
-            ConvBlock3D(base_channels, base_channels, 3, 1),    # Conv2
-            ConvBlock3D(base_channels, base_channels, 3, 1),    # Conv3
-            ConvBlock3D(base_channels, base_channels, 3, 1),    # Conv4
-            ConvBlock3D(base_channels, base_channels * 2, 3, 1), # Conv5 - increase channels
-            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1), # Conv6
-            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1), # Conv7
-            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1), # Conv8
+            ConvBlock3D(base_channels, base_channels, 3, 1),      # Conv1
+            ConvBlock3D(base_channels, base_channels, 3, 1),      # Conv2
+            ConvBlock3D(base_channels, base_channels * 2, 3, 1),  # Conv3 - increase channels
+            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1), # Conv4
+            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1), # Conv5
         )
     
     def forward(self, x):
+        x = self.stem(x)  # Downsample first to reduce memory
         return self.layers(x)
 
 
@@ -64,22 +69,19 @@ class SubsampledPathway(nn.Module):
     Receptive field: ~51³ voxels
     """
     
-    def __init__(self, in_channels=1, base_channels=30, downsample_factor=3):
+    def __init__(self, in_channels=1, base_channels=30, downsample_factor=4):
         super(SubsampledPathway, self).__init__()
         
         self.downsample_factor = downsample_factor
         
-        # Downsampling layer
+        # Aggressive downsampling layer
         self.downsample = nn.MaxPool3d(kernel_size=downsample_factor, stride=downsample_factor)
         
-        # 8 convolutional layers (same structure as normal pathway)
+        # 5 convolutional layers (reduced for memory efficiency)
         self.layers = nn.Sequential(
             ConvBlock3D(in_channels, base_channels, 3, 1),
             ConvBlock3D(base_channels, base_channels, 3, 1),
-            ConvBlock3D(base_channels, base_channels, 3, 1),
-            ConvBlock3D(base_channels, base_channels, 3, 1),
             ConvBlock3D(base_channels, base_channels * 2, 3, 1),
-            ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1),
             ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1),
             ConvBlock3D(base_channels * 2, base_channels * 2, 3, 1),
         )
