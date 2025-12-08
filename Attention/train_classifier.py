@@ -63,18 +63,27 @@ class VertebraDataset(Dataset):
         self.samples = []
         if phase in vertebra_data:
             for vertebra_id, genant_grade in vertebra_data[phase].items():
-                ct_path = os.path.join(self.ct_folder, f"{vertebra_id}.nii.gz")
-                if os.path.exists(ct_path):
-                    # Binary classification per paper:
-                    # Class 0 (Negative): No compression fracture (Genant grade 0)
-                    # Class 1 (Positive): Has compression fracture (Genant grade 1, 2, 3)
-                    label = 0 if int(genant_grade) == 0 else 1
-                    self.samples.append({
-                        'id': vertebra_id,
-                        'path': ct_path,
-                        'label': label,
-                        'genant': int(genant_grade)
-                    })
+                # Check for both .nii.gz and .nii extensions (Kaggle may decompress)
+                ct_path_gz = os.path.join(self.ct_folder, f"{vertebra_id}.nii.gz")
+                ct_path_nii = os.path.join(self.ct_folder, f"{vertebra_id}.nii")
+                
+                if os.path.exists(ct_path_gz):
+                    ct_path = ct_path_gz
+                elif os.path.exists(ct_path_nii):
+                    ct_path = ct_path_nii
+                else:
+                    continue  # File not found, skip
+                
+                # Binary classification per paper:
+                # Class 0 (Negative): No compression fracture (Genant grade 0)
+                # Class 1 (Positive): Has compression fracture (Genant grade 1, 2, 3)
+                label = 0 if int(genant_grade) == 0 else 1
+                self.samples.append({
+                    'id': vertebra_id,
+                    'path': ct_path,
+                    'label': label,
+                    'genant': int(genant_grade)
+                })
         
         print(f"Loaded {len(self.samples)} samples for {phase}")
         
