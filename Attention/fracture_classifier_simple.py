@@ -60,12 +60,12 @@ class SimpleFractureClassifier(nn.Module):
     
     Designed for small datasets (~500 samples) with:
     - Fewer parameters (~2M vs 33M)
-    - More dropout for regularization
+    - Light regularization (BatchNorm + minimal dropout)
     - Shallower architecture
     
     Binary classification:
-        - Class 0: Normal/Mild (Genant grade 0-1)
-        - Class 1: Moderate/Severe (Genant grade 2-3)
+        - Class 0: No fracture (Genant grade 0)
+        - Class 1: Has fracture (Genant grade 1-3)
     """
     
     def __init__(self, in_channels=1, num_classes=2, dropout=0.3):
@@ -73,37 +73,37 @@ class SimpleFractureClassifier(nn.Module):
         
         self.dropout_rate = dropout
         
-        # Stem: Initial downsampling
+        # Stem: Initial downsampling (NO dropout - BatchNorm is enough)
         self.stem = nn.Sequential(
-            ConvBlock3D(in_channels, 32, kernel_size=7, stride=2, padding=3, dropout=dropout),
+            ConvBlock3D(in_channels, 32, kernel_size=7, stride=2, padding=3, dropout=0),
             nn.MaxPool3d(kernel_size=3, stride=2, padding=1)
         )
         
-        # Stage 1: 32 -> 64 channels
+        # Stage 1: 32 -> 64 channels (NO dropout in conv layers)
         self.stage1 = nn.Sequential(
-            ConvBlock3D(32, 64, stride=1, dropout=dropout),
-            SimpleResBlock3D(64, dropout=dropout)
+            ConvBlock3D(32, 64, stride=1, dropout=0),
+            SimpleResBlock3D(64, dropout=0)
         )
         
         # Stage 2: 64 -> 128 channels (downsample)
         self.stage2 = nn.Sequential(
-            ConvBlock3D(64, 128, stride=2, dropout=dropout),
-            SimpleResBlock3D(128, dropout=dropout)
+            ConvBlock3D(64, 128, stride=2, dropout=0),
+            SimpleResBlock3D(128, dropout=0)
         )
         
         # Stage 3: 128 -> 256 channels (downsample) - Target for Grad-CAM++
         self.stage3 = nn.Sequential(
-            ConvBlock3D(128, 256, stride=2, dropout=dropout),
-            SimpleResBlock3D(256, dropout=dropout)
+            ConvBlock3D(128, 256, stride=2, dropout=0),
+            SimpleResBlock3D(256, dropout=0)
         )
         
-        # Global pooling and classifier
+        # Global pooling and classifier (only dropout here)
         self.avgpool = nn.AdaptiveAvgPool3d(1)
         self.classifier = nn.Sequential(
-            nn.Dropout(p=0.5),  # Heavy dropout before FC
+            nn.Dropout(p=0.3),  # Reduced from 0.5
             nn.Linear(256, 64),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.3),
+            nn.Dropout(p=0.1),  # Reduced from 0.3
             nn.Linear(64, num_classes)
         )
         
